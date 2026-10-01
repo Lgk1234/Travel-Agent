@@ -7,6 +7,11 @@
 
 > 两条业务流程分离；LLM 接入、工具、数据模型、可观测等基础能力共用。
 
+## 效果展示
+<img width="1803" height="1164" alt="3a76039d3ffa688d62dda60beb0047c1" src="https://github.com/user-attachments/assets/7f0ea92a-8d03-4f8a-976a-0dae48dd0c53" />
+<img width="1848" height="1307" alt="61169d548251f8a2b49eb91155e8c70c" src="https://github.com/user-attachments/assets/469c9cdc-37da-43a7-927d-63d5e4c3c20f" />
+
+
 ## 核心功能
 
 - **对话问答**：基于 ReAct + 工具调用，回答实时天气、地点搜索、路线规划等问题，SSE 流式输出。
