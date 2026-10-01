@@ -1,0 +1,31 @@
+# Python
+.venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+
+# 环境与密钥
+.env
+.env.*
+!.env.example
+
+# 编辑器 / 系统
+.idea/
+.vscode/
+.DS_Store
+
+# 日志与临时
+*.log
+.pytest_cache/
+data/
+
+# 内部工具数据（不进仓库）
+.codebuddy/
+
+# 内部架构文档（不随仓库发布）
+ARCHITECTURE.md
+
+# 本地 trace 落盘（诊断用，自动生成）
+traces/

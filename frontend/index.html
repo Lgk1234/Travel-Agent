@@ -1,0 +1,483 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>智能出行助手</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --primary: #0EA5E9;
+      --primary-2: #14B8A6;
+      --primary-3: #6366F1;
+      --bg-1: #F0F9FF;
+      --text-1: #0F172A;
+      --text-2: #475569;
+    }
+    * { font-family: 'Noto Sans SC', system-ui, sans-serif; }
+    body {
+      background:
+        radial-gradient(1200px 600px at 10% -10%, rgba(14,165,233,0.18), transparent 60%),
+        radial-gradient(1000px 500px at 100% 0%, rgba(99,102,241,0.16), transparent 55%),
+        linear-gradient(180deg, #F0F9FF 0%, #FFFFFF 55%, #0F172A 100%);
+      min-height: 100vh;
+    }
+    .glass {
+      background: rgba(255,255,255,0.55);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid rgba(255,255,255,0.6);
+      box-shadow: 0 10px 40px -12px rgba(15,23,42,0.18);
+    }
+    .glass-dark { background: rgba(15,23,42,0.65); backdrop-filter: blur(14px); border: 1px solid rgba(255,255,255,0.12); }
+    .gradient-text { background: linear-gradient(90deg, #0EA5E9, #14B8A6, #6366F1); -webkit-background-clip: text; background-clip: text; color: transparent; }
+    .nav-tab { transition: all .25s ease; }
+    .nav-tab.active { color: #0EA5E9; box-shadow: inset 0 -2px 0 0 #0EA5E9; }
+    .btn-primary { background: linear-gradient(90deg, #0EA5E9, #14B8A6); transition: transform .15s ease, box-shadow .15s ease; }
+    .btn-primary:hover { transform: translateY(-1px); box-shadow: 0 12px 30px -10px rgba(14,165,233,.6); }
+    .btn-primary:active { transform: scale(.98); }
+    .chip { transition: all .2s ease; }
+    .chip:hover { transform: translateY(-2px); }
+    .chip.selected { background: linear-gradient(90deg,#0EA5E9,#14B8A6); color: #fff; border-color: transparent; }
+    .card-hover { transition: transform .25s ease, box-shadow .25s ease; }
+    .card-hover:hover { transform: translateY(-3px); box-shadow: 0 18px 40px -16px rgba(15,23,42,.28); }
+    .day-card { transition: max-height .35s ease, opacity .35s ease; }
+    @keyframes floaty { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-6px)} }
+    .floaty { animation: floaty 5s ease-in-out infinite; }
+    @keyframes pulse-dot { 0%,100%{opacity:.4} 50%{opacity:1} }
+    .pulse-dot { animation: pulse-dot 1.2s ease-in-out infinite; }
+    .msg-enter { animation: msgIn .35s ease both; }
+    @keyframes msgIn { from{opacity:0; transform:translateY(8px)} to{opacity:1; transform:translateY(0)} }
+    /* scrollbar */
+    ::-webkit-scrollbar { width: 8px; height: 8px; }
+    ::-webkit-scrollbar-thumb { background: rgba(14,165,233,.35); border-radius: 8px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    .step-item.active { color:#0EA5E9; }
+    .step-item.done { color:#14B8A6; }
+  </style>
+</head>
+<body class="text-slate-800">
+  <!-- 顶部导航 -->
+  <header class="sticky top-0 z-30">
+    <div class="glass mx-auto max-w-6xl mt-4 rounded-2xl px-5 py-3 flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-xl btn-primary flex items-center justify-center text-white text-xl floaty">✈️</div>
+        <div>
+          <div class="text-lg font-bold gradient-text">智能出行助手</div>
+          <div class="text-xs text-slate-500">AI Travel Planner</div>
+        </div>
+      </div>
+      <nav class="flex items-center gap-1 bg-white/50 rounded-xl p-1">
+        <button id="tab-chat" class="nav-tab active px-4 py-1.5 rounded-lg text-sm font-medium">💬 对话</button>
+        <button id="tab-plan" class="nav-tab px-4 py-1.5 rounded-lg text-sm font-medium">🗺️ 规划</button>
+      </nav>
+      <div class="hidden sm:flex items-center gap-2 text-xs text-slate-500">
+        <span class="w-2 h-2 rounded-full bg-emerald-400 pulse-dot"></span>
+        <span>模型：<span id="model-badge" class="font-semibold text-slate-700">qwen</span></span>
+      </div>
+    </div>
+  </header>
+
+  <main class="mx-auto max-w-6xl px-4 pb-16">
+    <!-- ================= 对话页 ================= -->
+    <section id="view-chat" class="mt-6">
+      <div class="glass rounded-3xl overflow-hidden flex flex-col" style="height:72vh">
+        <div class="px-6 py-4 border-b border-white/60">
+          <h2 class="text-xl font-bold">旅行问答</h2>
+          <p class="text-sm text-slate-500">我能帮你查天气、路线、景点，陪你聊出行的一切 🌤️🧭</p>
+        </div>
+        <div id="chat-messages" class="flex-1 overflow-y-auto px-6 py-4 space-y-4"></div>
+        <!-- 仅作展示，提示可问内容 -->
+        <div id="chat-chips" class="px-6 flex flex-wrap gap-2">
+          <span class="px-3 py-1.5 rounded-full text-sm bg-white/60 border border-slate-200 text-slate-500">🌤️ 天气查询</span>
+          <span class="px-3 py-1.5 rounded-full text-sm bg-white/60 border border-slate-200 text-slate-500">🧭 路线规划</span>
+          <span class="px-3 py-1.5 rounded-full text-sm bg-white/60 border border-slate-200 text-slate-500">📍 附近景点</span>
+          <span class="px-3 py-1.5 rounded-full text-sm bg-white/60 border border-slate-200 text-slate-500">🚄 交通方式</span>
+        </div>
+
+        <div class="p-4 flex gap-3 items-end">
+          <textarea id="chat-input" rows="1" placeholder="输入你的问题，回车发送…" class="flex-1 resize-none rounded-2xl border border-slate-200 bg-white/80 px-4 py-3 outline-none focus:ring-2 focus:ring-sky-300"></textarea>
+          <button id="chat-send" class="btn-primary text-white px-5 py-3 rounded-2xl font-semibold">发送 ➤</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= 规划页 ================= -->
+    <section id="view-plan" class="mt-6 hidden">
+      <div class="grid grid-cols-1 lg:grid-cols-5 gap-6">
+        <!-- 表单 -->
+        <div class="glass rounded-3xl p-6 lg:col-span-2">
+          <h2 class="text-xl font-bold mb-1">一键生成行程</h2>
+          <p class="text-sm text-slate-500 mb-5">填写需求，AI 结合高德真实数据为你规划 🗺️</p>
+
+          <div class="space-y-4">
+            <div>
+              <label class="text-sm font-medium">目的地城市</label>
+              <input id="f-city" type="text" placeholder="如：北京" class="w-full mt-1 rounded-xl border border-slate-200 bg-white/80 px-3 py-2 outline-none focus:ring-2 focus:ring-sky-300" />
+            </div>
+            <div class="grid grid-cols-2 gap-3">
+              <div>
+                <label class="text-sm font-medium">出发日期</label>
+                <input id="f-start" type="date" class="w-full mt-1 rounded-xl border border-slate-200 bg-white/80 px-3 py-2 outline-none focus:ring-2 focus:ring-sky-300" />
+              </div>
+              <div>
+                <label class="text-sm font-medium">返程日期</label>
+                <input id="f-end" type="date" class="w-full mt-1 rounded-xl border border-slate-200 bg-white/80 px-3 py-2 outline-none focus:ring-2 focus:ring-sky-300" />
+              </div>
+            </div>
+            <div class="grid grid-cols-2 gap-3">
+              <div>
+                <label class="text-sm font-medium">出行人数</label>
+                <input id="f-people" type="number" min="1" value="2" class="w-full mt-1 rounded-xl border border-slate-200 bg-white/80 px-3 py-2 outline-none focus:ring-2 focus:ring-sky-300" />
+              </div>
+              <div>
+                <label class="text-sm font-medium">总预算（元）</label>
+                <input id="f-budget" type="number" min="0" step="100" value="5000" class="w-full mt-1 rounded-xl border border-slate-200 bg-white/80 px-3 py-2 outline-none focus:ring-2 focus:ring-sky-300" />
+              </div>
+            </div>
+            <div class="grid grid-cols-2 gap-3">
+              <div>
+                <label class="text-sm font-medium">交通方式</label>
+                <select id="f-transport" class="w-full mt-1 rounded-xl border border-slate-200 bg-white/80 px-3 py-2 outline-none focus:ring-2 focus:ring-sky-300">
+                  <option>公共交通</option><option>自驾</option><option>高铁</option><option>飞机</option><option>步行+公交</option>
+                </select>
+              </div>
+              <div>
+                <label class="text-sm font-medium">住宿类型</label>
+                <select id="f-hotel" class="w-full mt-1 rounded-xl border border-slate-200 bg-white/80 px-3 py-2 outline-none focus:ring-2 focus:ring-sky-300">
+                  <option>经济型酒店</option><option>舒适型酒店</option><option>豪华酒店</option><option>民宿</option><option>青年旅舍</option>
+                </select>
+              </div>
+            </div>
+            <div>
+              <label class="text-sm font-medium">偏好标签（可多选）</label>
+              <div id="f-prefs" class="flex flex-wrap gap-2 mt-2">
+                <button class="chip px-3 py-1.5 rounded-full text-sm bg-white/70 border border-slate-200" data-p="美食">🍜 美食</button>
+                <button class="chip px-3 py-1.5 rounded-full text-sm bg-white/70 border border-slate-200" data-p="历史文化">🏛️ 历史文化</button>
+                <button class="chip px-3 py-1.5 rounded-full text-sm bg-white/70 border border-slate-200" data-p="自然风光">⛰️ 自然风光</button>
+                <button class="chip px-3 py-1.5 rounded-full text-sm bg-white/70 border border-slate-200" data-p="亲子友好">👶 亲子友好</button>
+                <button class="chip px-3 py-1.5 rounded-full text-sm bg-white/70 border border-slate-200" data-p="购物">🛍️ 购物</button>
+                <button class="chip px-3 py-1.5 rounded-full text-sm bg-white/70 border border-slate-200" data-p="避开人流">🤫 避开人流</button>
+                <button class="chip px-3 py-1.5 rounded-full text-sm bg-white/70 border border-slate-200" data-p="拍照打卡">📸 拍照打卡</button>
+                <button class="chip px-3 py-1.5 rounded-full text-sm bg-white/70 border border-slate-200" data-p="小众宝藏">💎 小众宝藏</button>
+              </div>
+            </div>
+            <div>
+              <label class="text-sm font-medium">补充需求</label>
+              <textarea id="f-note" rows="2" placeholder="如：多安排博物馆、不要太累、想看日落…" class="w-full mt-1 rounded-xl border border-slate-200 bg-white/80 px-3 py-2 outline-none focus:ring-2 focus:ring-sky-300"></textarea>
+            </div>
+            <button id="plan-gen" class="btn-primary w-full text-white py-3 rounded-2xl font-semibold">✨ 一键生成行程</button>
+          </div>
+        </div>
+
+        <!-- 结果 -->
+        <div class="lg:col-span-3 space-y-4">
+          <!-- 进度 -->
+          <div id="plan-progress" class="glass rounded-3xl p-6 hidden">
+            <div class="flex items-center gap-3 mb-4">
+              <div class="w-8 h-8 rounded-full btn-primary flex items-center justify-center text-white pulse-dot">⏳</div>
+              <h3 class="font-bold">正在为你规划…</h3>
+            </div>
+            <div id="step-list" class="space-y-2 text-sm text-slate-500"></div>
+          </div>
+
+          <!-- 结果区 -->
+          <div id="plan-result" class="space-y-4"></div>
+
+          <!-- 空态 -->
+          <div id="plan-empty" class="glass rounded-3xl p-10 text-center text-slate-500">
+            <div class="text-5xl mb-3 floaty">🧳</div>
+            <p>填写左侧需求，点击「一键生成行程」<br/>AI 将结合真实地图数据为你定制专属旅行计划。</p>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    // ---------- Tab 切换 ----------
+    const tabChat = document.getElementById('tab-chat');
+    const tabPlan = document.getElementById('tab-plan');
+    const viewChat = document.getElementById('view-chat');
+    const viewPlan = document.getElementById('view-plan');
+    tabChat.onclick = () => { tabChat.classList.add('active'); tabPlan.classList.remove('active'); viewChat.classList.remove('hidden'); viewPlan.classList.add('hidden'); };
+    tabPlan.onclick = () => { tabPlan.classList.add('active'); tabChat.classList.remove('active'); viewPlan.classList.remove('hidden'); viewChat.classList.add('hidden'); };
+
+    // ---------- SSE (POST + fetch streaming) ----------
+    async function postSSE(url, body, onEvent) {
+      const resp = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+      if (!resp.ok) {
+        let msg = '请求失败 (' + resp.status + ')';
+        try { const j = await resp.json(); msg = (j.detail || msg); } catch (e) {}
+        onEvent({ type: 'error', message: msg }); return;
+      }
+      const reader = resp.body.getReader();
+      const decoder = new TextDecoder();
+      let buf = '';
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buf += decoder.decode(value, { stream: true });
+        let idx;
+        while ((idx = buf.indexOf('\n')) >= 0) {
+          const line = buf.slice(0, idx).trim();
+          buf = buf.slice(idx + 1);
+          if (line.startsWith('data:')) {
+            const data = line.slice(5).trim();
+            if (!data || data === '[DONE]') continue;
+            try { onEvent(JSON.parse(data)); } catch (e) {}
+          }
+        }
+      }
+    }
+
+    // ---------- 对话页 ----------
+    const chatMessages = document.getElementById('chat-messages');
+    const chatInput = document.getElementById('chat-input');
+    const chatHistory = [];
+    // 本次会话的短期记忆线程 ID（后端据此维护多轮上下文）
+    const sessionId = (window.crypto && crypto.randomUUID) ? crypto.randomUUID() : ('sess-' + Date.now());
+    const defaultWelcome = () => addMessage('assistant', '你好！我是你的智能出行助手 ✈️ 想查天气、问路线，还是找景点？随时问我～');
+
+    function scrollChat() { chatMessages.scrollTop = chatMessages.scrollHeight; }
+    function addMessage(role, text) {
+      const wrap = document.createElement('div');
+      wrap.className = 'msg-enter flex ' + (role === 'user' ? 'justify-end' : 'justify-start');
+      const bubble = document.createElement('div');
+      bubble.className = (role === 'user'
+        ? 'bg-gradient-to-br from-sky-500 to-teal-500 text-white'
+        : 'glass text-slate-700') + ' max-w-[80%] rounded-2xl px-4 py-3 whitespace-pre-wrap leading-relaxed';
+      bubble.textContent = text;
+      wrap.appendChild(bubble);
+      chatMessages.appendChild(wrap);
+      scrollChat();
+      return bubble;
+    }
+
+    async function sendChat(text) {
+      if (!text || !text.trim()) return;
+      addMessage('user', text.trim());
+      chatHistory.push({ role: 'user', content: text.trim() });
+      const bubble = addMessage('assistant', '');
+      const body = { message: text.trim(), history: chatHistory.slice(0, -1), model: null, thread_id: sessionId };
+      let acc = '';
+      await postSSE('/api/chat', body, (ev) => {
+        if (ev.type === 'token') { acc += ev.content; bubble.textContent = acc; scrollChat(); }
+        else if (ev.type === 'error') { bubble.textContent = '⚠️ ' + ev.message; }
+        else if (ev.type === 'end') { chatHistory.push({ role: 'assistant', content: acc }); scrollChat(); }
+      });
+    }
+
+    document.getElementById('chat-send').onclick = () => { const t = chatInput.value; chatInput.value = ''; sendChat(t); };
+    chatInput.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); const t = chatInput.value; chatInput.value = ''; sendChat(t); } });
+    chatInput.addEventListener('input', () => { chatInput.style.height = 'auto'; chatInput.style.height = Math.min(chatInput.scrollHeight, 140) + 'px'; });
+
+    // ---------- 规划页 ----------
+    const prefsBox = document.getElementById('f-prefs');
+    prefsBox.querySelectorAll('.chip').forEach(c => c.onclick = () => c.classList.toggle('selected'));
+    const stepMeta = {
+      init: '🎯 正在分析你的旅行需求',
+      weather: '🌤️ 正在查询目的地天气',
+      attraction: '📍 正在为你挑选景点',
+      hotel: '🏨 正在寻找合适的住宿',
+      routing: '🚗 正在规划每日出行路线',
+      synthesize: '🧩 正在生成你的专属行程',
+      parse: '📑 整理行程数据',
+      revise: '🔧 正在按你的意见调整行程',
+      done: '✅ 行程已生成'
+    };
+    let lastPlanData = null;
+    let currentRequest = null;
+
+    function diffDays(a, b) {
+      const d1 = new Date(a), d2 = new Date(b);
+      return Math.max(1, Math.round((d2 - d1) / 86400000) + 1);
+    }
+
+    function buildRequest() {
+      const start = document.getElementById('f-start').value;
+      const end = document.getElementById('f-end').value;
+      const prefs = [...prefsBox.querySelectorAll('.chip.selected')].map(c => c.dataset.p);
+      return {
+        city: document.getElementById('f-city').value.trim() || '北京',
+        start_date: start || new Date().toISOString().slice(0, 10),
+        end_date: end || new Date(Date.now() + 3 * 86400000).toISOString().slice(0, 10),
+        travel_days: (start && end) ? diffDays(start, end) : 3,
+        people_count: parseInt(document.getElementById('f-people').value) || 1,
+        budget: parseInt(document.getElementById('f-budget').value) || null,
+        transportation: document.getElementById('f-transport').value,
+        accommodation: document.getElementById('f-hotel').value,
+        preferences: prefs,
+        free_text_input: document.getElementById('f-note').value.trim()
+      };
+    }
+
+    function resetProgress() {
+      const box = document.getElementById('plan-progress');
+      box.classList.remove('hidden');
+      document.getElementById('step-list').innerHTML = '';
+      document.getElementById('plan-result').innerHTML = '';
+    }
+    function markStep(stage, detail) {
+      const list = document.getElementById('step-list');
+      let li = document.getElementById('step-' + stage);
+      if (!li) {
+        li = document.createElement('div');
+        li.id = 'step-' + stage;
+        li.className = 'step-item flex items-center gap-2';
+        list.appendChild(li);
+      }
+      li.className = 'step-item done flex items-center gap-2 text-teal-600';
+      li.innerHTML = '<span>✓</span><span>' + (detail || stepMeta[stage] || stage) + '</span>';
+      // 高亮当前
+      list.querySelectorAll('.step-item').forEach(s => s.classList.remove('active'));
+      li.classList.add('active');
+    }
+
+    function renderPlan(plan) {
+      lastPlanData = plan;
+      document.getElementById('plan-empty')?.classList.add('hidden');
+      const root = document.getElementById('plan-result');
+      root.innerHTML = '';
+      // 概览卡
+      const overview = document.createElement('div');
+      overview.className = 'glass rounded-3xl p-6 card-hover';
+      overview.innerHTML = `<div class="flex items-center justify-between">
+        <div><div class="text-xs text-slate-500">目的地</div><div class="text-2xl font-bold gradient-text">${plan.city}</div></div>
+        <div class="text-right"><div class="text-xs text-slate-500">行程</div><div class="font-semibold">${plan.start_date} → ${plan.end_date}</div></div>
+      </div>
+      <p class="mt-3 text-sm text-slate-600">${plan.overall_suggestions || ''}</p>`;
+      root.appendChild(overview);
+
+      // 评估报告（LLM-as-judge）
+      if (plan.evaluation) {
+        const e = plan.evaluation;
+        const ev = document.createElement('div');
+        ev.className = 'glass rounded-3xl p-6 card-hover';
+        ev.innerHTML = `<div class="flex items-center justify-between mb-3">
+            <h3 class="font-bold">🤖 AI 评估报告</h3>
+            <span class="text-2xl font-bold gradient-text">${e.score}/100</span>
+          </div>
+          <div class="grid grid-cols-2 md:grid-cols-4 gap-3 text-center mb-3">
+            <div class="bg-white/50 rounded-xl p-3"><div class="text-xs text-slate-500">完整度</div><div class="font-semibold text-teal-600">${e.completeness}</div></div>
+            <div class="bg-white/50 rounded-xl p-3"><div class="text-xs text-slate-500">可行性</div><div class="font-semibold text-teal-600">${e.feasibility}</div></div>
+            <div class="bg-white/50 rounded-xl p-3"><div class="text-xs text-slate-500">安全合规</div><div class="font-semibold text-teal-600">${e.safety}</div></div>
+            <div class="bg-white/50 rounded-xl p-3"><div class="text-xs text-slate-500">预算合理</div><div class="font-semibold text-teal-600">${e.budget_reasonableness}</div></div>
+          </div>
+          <p class="text-sm text-slate-600">${e.critique || '—'}</p>`;
+        root.appendChild(ev);
+      }
+
+      // 每日卡片
+      (plan.days || []).forEach((day, i) => {
+        const card = document.createElement('div');
+        card.className = 'glass rounded-3xl overflow-hidden card-hover';
+        const w = (plan.weather_info || []).find(w => w.date === day.date) || {};
+        const meals = (day.meals || []).map(m => `<div class="flex justify-between text-sm py-1 border-b border-white/40"><span class="text-slate-500">${m.type}</span><span>${m.restaurant || '—'} <span class="text-teal-600">¥${m.estimated_cost || 0}</span></span></div>`).join('');
+        const attrs = (day.attractions || []).map(a => `<li class="flex justify-between gap-2 py-1"><span>📍 ${a.name}</span><span class="text-teal-600 whitespace-nowrap">¥${a.ticket_price || 0}</span></li>`).join('');
+        const routes = (day.route || []).map(r => `<li class="flex justify-between gap-2 py-1 text-sm"><span>🚦 ${r.start} → ${r.end}</span><span class="text-teal-600 whitespace-nowrap">${r.mode} ${r.duration || ''}</span></li>`).join('');
+        card.innerHTML = `
+          <button class="day-head w-full flex items-center justify-between px-6 py-4 hover:bg-white/40">
+            <div class="flex items-center gap-3">
+              <div class="w-10 h-10 rounded-xl btn-primary text-white flex items-center justify-center font-bold">${i + 1}</div>
+              <div class="text-left"><div class="font-semibold">第 ${i + 1} 天 · ${day.date}</div>
+              <div class="text-xs text-slate-500">${w.day_weather || ''} ${w.day_temp ?? ''}° / ${w.night_temp ?? ''}° ${w.wind_direction || ''}${w.wind_power || ''}</div></div>
+            </div>
+            <div class="text-slate-400 text-xl chevron">▾</div>
+          </button>
+          <div class="day-body px-6 pb-5">
+            <div class="text-sm text-slate-600 mb-2">${day.description || ''}</div>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div><div class="text-sm font-semibold mb-1">🍽️ 餐饮</div>${meals || '<div class="text-sm text-slate-400">无</div>'}</div>
+              <div><div class="text-sm font-semibold mb-1">📍 景点</div><ul>${attrs || '<li class="text-sm text-slate-400">无</li>'}</ul></div>
+              <div><div class="text-sm font-semibold mb-1">🏨 住宿</div>${day.hotel ? `<div class="text-sm">${day.hotel.name}</div><div class="text-xs text-slate-500">${day.hotel.address || ''}</div><div class="text-teal-600">¥${day.hotel.price_per_night || 0}/晚</div>` : '<div class="text-sm text-slate-400">无</div>'}</div>
+            </div>
+            ${routes ? `<div class="mt-3"><div class="text-sm font-semibold mb-1">🚦 每日接驳</div><ul class="grid grid-cols-1 md:grid-cols-2 gap-1">${routes}</ul></div>` : ''}
+          </div>`;
+        root.appendChild(card);
+        const body = card.querySelector('.day-body');
+        const chevron = card.querySelector('.chevron');
+        body.style.display = i === 0 ? 'block' : 'none';
+        chevron.style.transform = i === 0 ? 'rotate(0)' : 'rotate(-90deg)';
+        card.querySelector('.day-head').onclick = () => {
+          const open = body.style.display !== 'none';
+          body.style.display = open ? 'none' : 'block';
+          chevron.style.transform = open ? 'rotate(-90deg)' : 'rotate(0)';
+        };
+      });
+
+      // 预算条
+      if (plan.budget) {
+        const b = plan.budget;
+        const budget = document.createElement('div');
+        budget.className = 'glass rounded-3xl p-6 card-hover';
+        budget.innerHTML = `
+          <div class="flex items-center justify-between mb-3"><h3 class="font-bold">💰 预算汇总</h3><span class="text-xl font-bold gradient-text">¥${b.total || 0}</span></div>
+          <div class="grid grid-cols-2 md:grid-cols-4 gap-3 text-center">
+            <div class="bg-white/50 rounded-xl p-3"><div class="text-xs text-slate-500">景点门票</div><div class="font-semibold text-teal-600">¥${b.total_attractions || 0}</div></div>
+            <div class="bg-white/50 rounded-xl p-3"><div class="text-xs text-slate-500">酒店</div><div class="font-semibold text-teal-600">¥${b.total_hotels || 0}</div></div>
+            <div class="bg-white/50 rounded-xl p-3"><div class="text-xs text-slate-500">餐饮</div><div class="font-semibold text-teal-600">¥${b.total_meals || 0}</div></div>
+            <div class="bg-white/50 rounded-xl p-3"><div class="text-xs text-slate-500">交通</div><div class="font-semibold text-teal-600">¥${b.total_transportation || 0}</div></div>
+          </div>
+          <div class="flex gap-3 mt-4">
+            <button id="btn-json" class="btn-primary text-white px-4 py-2 rounded-xl text-sm">⬇️ 导出 JSON</button>
+            <button id="btn-copy" class="px-4 py-2 rounded-xl text-sm bg-white/70 border border-slate-200">📋 复制</button>
+            <button id="btn-regen" class="px-4 py-2 rounded-xl text-sm bg-white/70 border border-slate-200">🔄 重新生成</button>
+          </div>`;
+        root.appendChild(budget);
+        budget.querySelector('#btn-json').onclick = () => {
+          const blob = new Blob([JSON.stringify(plan, null, 2)], { type: 'application/json' });
+          const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = plan.city + '_行程.json'; a.click();
+        };
+        budget.querySelector('#btn-copy').onclick = () => navigator.clipboard.writeText(JSON.stringify(plan, null, 2)).then(() => alert('已复制行程 JSON'));
+        budget.querySelector('#btn-regen').onclick = () => generatePlan();
+      }
+
+      // 调整（Human-in-the-loop）卡片
+      const revCard = document.createElement('div');
+      revCard.className = 'glass rounded-3xl p-6 card-hover';
+      revCard.innerHTML = `
+        <h3 class="font-bold mb-2">🔧 调整行程</h3>
+        <p class="text-sm text-slate-500 mb-3">对当前行程不满意？描述修改意见，AI 会据此重新规划（含酒店/景点/天气/路线关键词时会重新查询真实数据）。</p>
+        <textarea id="rev-input" rows="2" placeholder="如：第二天安排轻松点 / 酒店换到离故宫近的 / 把博物馆换成公园" class="w-full rounded-xl border border-slate-200 bg-white/80 px-3 py-2 outline-none focus:ring-2 focus:ring-sky-300"></textarea>
+        <button id="rev-btn" class="btn-primary w-full text-white mt-3 py-3 rounded-2xl font-semibold">⚡ 按意见调整</button>`;
+      root.appendChild(revCard);
+      revCard.querySelector('#rev-btn').onclick = () => revisePlan(revCard.querySelector('#rev-input').value);
+    }
+
+    function showPlanError(msg) {
+      const root = document.getElementById('plan-result');
+      root.innerHTML = `<div class="glass rounded-3xl p-6 text-red-600">⚠️ 生成失败：${msg}<br/><span class="text-sm text-slate-500">请检查 .env 中的 API Key 与高德 Key 是否正确。</span></div>`;
+    }
+
+    async function generatePlan() {
+      resetProgress();
+      const req = buildRequest();
+      currentRequest = req;
+      await postSSE('/api/trip/plan', req, (ev) => {
+        if (ev.type === 'progress') markStep(ev.stage, ev.detail);
+        else if (ev.type === 'result') renderPlan(ev.data);
+        else if (ev.type === 'error') showPlanError(ev.message);
+      });
+    }
+    async function revisePlan(instruction) {
+      if (!instruction || !instruction.trim()) return;
+      if (!currentRequest || !lastPlanData) { alert('请先生成一份行程'); return; }
+      resetProgress();
+      const body = { request: currentRequest, plan: lastPlanData, instruction: instruction.trim() };
+      await postSSE('/api/trip/revise', body, (ev) => {
+        if (ev.type === 'progress') markStep(ev.stage, ev.detail);
+        else if (ev.type === 'result') renderPlan(ev.data);
+        else if (ev.type === 'error') showPlanError(ev.message);
+      });
+    }
+
+    document.getElementById('plan-gen').onclick = generatePlan;
+
+    // 初始化
+    defaultWelcome();
+  </script>
+</body>
+</html>
